@@ -1,97 +1,95 @@
 ```lua
 -- Import required libraries
-local luasql = require("luasql.mysql")
+local luasql = require("luasql.sqlite3")
 local config = require("config")
 
--- Create a connection to the database
-local env = luasql.mysql()
-local con = env:connect(config.database.name, config.database.username, config.database.password, config.database.host, config.database.port)
-
--- Check if the connection was successful
-if con then
-    print("Connected to database")
-else
-    print("Failed to connect to database")
-    return
-end
+-- Create a connection to the SQLite database
+local env = luasql.sqlite3()
+local con = env:connect(config.database.name)
 
 -- Create the users table
-local users = [[
+con:execute[[
     CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT,
-        username VARCHAR(255) NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        PRIMARY KEY (id)
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        email TEXT NOT NULL,
+        password TEXT NOT NULL
     );
 ]]
 
 -- Create the lessons table
-local lessons = [[
+con:execute[[
     CREATE TABLE IF NOT EXISTS lessons (
-        id INT AUTO_INCREMENT,
-        title VARCHAR(255) NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
         description TEXT NOT NULL,
-        code TEXT NOT NULL,
-        PRIMARY KEY (id)
+        code TEXT NOT NULL
     );
 ]]
 
 -- Create the projects table
-local projects = [[
+con:execute[[
     CREATE TABLE IF NOT EXISTS projects (
-        id INT AUTO_INCREMENT,
-        title VARCHAR(255) NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
         description TEXT NOT NULL,
-        code TEXT NOT NULL,
-        PRIMARY KEY (id)
+        code TEXT NOT NULL
     );
 ]]
 
--- Create the forum_posts table
-local forum_posts = [[
-    CREATE TABLE IF NOT EXISTS forum_posts (
-        id INT AUTO_INCREMENT,
-        title VARCHAR(255) NOT NULL,
+-- Create the community_posts table
+con:execute[[
+    CREATE TABLE IF NOT EXISTS community_posts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
         content TEXT NOT NULL,
-        user_id INT NOT NULL,
-        PRIMARY KEY (id),
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        user_id INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users (id)
     );
 ]]
 
--- Execute the SQL queries to create the tables
-con:execute(users)
-con:execute(lessons)
-con:execute(projects)
-con:execute(forum_posts)
+-- Create the user_lessons table to track user progress
+con:execute[[
+    CREATE TABLE IF NOT EXISTS user_lessons (
+        user_id INTEGER NOT NULL,
+        lesson_id INTEGER NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, lesson_id),
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (lesson_id) REFERENCES lessons (id)
+    );
+]]
 
--- Define a function to insert a new user into the database
-local function insert_user(username, email, password)
-    local query = "INSERT INTO users (username, email, password) VALUES (?, ?, ?)"
-    local cur = con:execute(query, username, email, password)
-    return cur:numrows()
+-- Create a function to insert a new user into the database
+local function insertUser(username, email, password)
+    local cur = con:execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)", username, email, password)
+    con:commit()
+    return cur:fetch({}, "a")
 end
 
--- Define a function to insert a new lesson into the database
-local function insert_lesson(title, description, code)
-    local query = "INSERT INTO lessons (title, description, code) VALUES (?, ?, ?)"
-    local cur = con:execute(query, title, description, code)
-    return cur:numrows()
+-- Create a function to retrieve a user by their ID
+local function getUserById(id)
+    local cur = con:execute("SELECT * FROM users WHERE id = ?", id)
+    return cur:fetch({}, "a")
 end
 
--- Define a function to insert a new project into the database
-local function insert_project(title, description, code)
-    local query = "INSERT INTO projects (title, description, code) VALUES (?, ?, ?)"
-    local cur = con:execute(query, title, description, code)
-    return cur:numrows()
+-- Create a function to retrieve all lessons
+local function getLessons()
+    local cur = con:execute("SELECT * FROM lessons")
+    local lessons = {}
+    local row = cur:fetch({}, "a")
+    while row do
+        table.insert(lessons, row)
+        row = cur:fetch({}, "a")
+    end
+    return lessons
 end
 
--- Define a function to insert a new forum post into the database
-local function insert_forum_post(title, content, user_id)
-    local query = "INSERT INTO forum_posts (title, content, user_id) VALUES (?, ?, ?)"
-    local cur = con:execute(query, title, content, user_id)
-    return cur:numrows()
+-- Create a function to insert a new lesson into the database
+local function insertLesson(title, description, code)
+    local cur = con:execute("INSERT INTO lessons (title, description, code) VALUES (?, ?, ?)", title, description, code)
+    con:commit()
+    return cur:fetch({}, "a")
 end
 
 -- Close the database connection
