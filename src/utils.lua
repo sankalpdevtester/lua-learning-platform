@@ -1,22 +1,21 @@
 ```lua
---- Formats a Lua table into a string for easier debugging.
---- @param tbl table The table to format.
---- @param indent number The indentation level.
---- @return string The formatted table as a string.
-local function formatTable(tbl, indent)
-    indent = indent or 0
-    local result = {}
-    for key, value in pairs(tbl) do
-        if type(value) == "table" then
-            table.insert(result, string.rep("  ", indent) .. tostring(key) .. " = {\n" .. formatTable(value, indent + 1) .. string.rep("  ", indent) .. "}")
-        else
-            table.insert(result, string.rep("  ", indent) .. tostring(key) .. " = " .. tostring(value))
-        end
+--- Validate and format Lua table keys
+--- @param key string
+--- @return string
+local function formatTableKey(key)
+    if type(key) ~= "string" then
+        error("Table key must be a string")
     end
-    return table.concat(result, "\n")
+
+    -- Remove leading and trailing whitespace
+    key = key:gsub("^%s+", ""):gsub("%s+$", "")
+
+    -- Replace special characters with underscores
+    key = key:gsub("[^%w_]", "_")
+
+    return key
 end
 
-return {
-    formatTable = formatTable
-}
+--- Add the new function to the utils module
+utils.formatTableKey = formatTableKey
 ```
