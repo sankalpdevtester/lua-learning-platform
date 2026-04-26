@@ -1,21 +1,13 @@
 ```lua
---- Validate and format Lua table keys
---- @param key string
---- @return string
-local function formatTableKey(key)
-    if type(key) ~= "string" then
-        error("Table key must be a string")
-    end
-
-    -- Remove leading and trailing whitespace
-    key = key:gsub("^%s+", ""):gsub("%s+$", "")
-
-    -- Replace special characters with underscores
-    key = key:gsub("[^%w_]", "_")
-
-    return key
+--- Escapes special characters in a Lua pattern.
+--- @param pattern string The Lua pattern to escape.
+--- @return string The escaped Lua pattern.
+local function escape_lua_pattern(pattern)
+    return pattern:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
 end
 
---- Add the new function to the utils module
-utils.formatTableKey = formatTableKey
+--- Returns the updated utils table with the new function.
+return {
+    escape_lua_pattern = escape_lua_pattern
+}
 ```
