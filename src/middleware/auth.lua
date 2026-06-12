@@ -9,7 +9,7 @@ local function authenticate(req, res, next)
 
     -- If the header is missing, return an error
     if not authHeader then
-        return res:status(401):send({ error = "Unauthorized" })
+        return res:status(401):send("Unauthorized")
     end
 
     -- Extract the token from the header
@@ -17,7 +17,7 @@ local function authenticate(req, res, next)
 
     -- If the token is missing, return an error
     if not token then
-        return res:status(401):send({ error = "Unauthorized" })
+        return res:status(401):send("Unauthorized")
     end
 
     -- Verify the token using the models module
@@ -25,7 +25,7 @@ local function authenticate(req, res, next)
 
     -- If the token is invalid, return an error
     if not user then
-        return res:status(401):send({ error = "Unauthorized" })
+        return res:status(401):send("Unauthorized")
     end
 
     -- Set the user on the request object
@@ -35,31 +35,73 @@ local function authenticate(req, res, next)
     next()
 end
 
--- Define a function to require authentication for certain routes
-local function requireAuth(routes)
+-- Define a function to require authentication for a route
+local function requireAuth(route)
     return function(req, res, next)
-        -- Check if the request is for a route that requires authentication
-        for _, route in ipairs(routes) do
-            if req.url:match(route) then
-                -- If the request is for a protected route, authenticate the user
-                return authenticate(req, res, next)
-            end
-        end
-
-        -- If the request is not for a protected route, call the next middleware or route handler
-        next()
+        authenticate(req, res, function()
+            route(req, res, next)
+        end)
     end
 end
 
--- Define a list of routes that require authentication
-local protectedRoutes = {
-    "/api/lessons",
-    "/api/projects",
-    "/api/community",
+-- Define a function to optional authentication for a route
+local function optionalAuth(route)
+    return function(req, res, next)
+        authenticate(req, res, function()
+            route(req, res, next)
+        end)
+    end
+end
+
+-- Return the authentication middleware functions
+return {
+    authenticate = authenticate,
+    requireAuth = requireAuth,
+    optionalAuth = optionalAuth,
 }
+```
+```lua
+-- src/utils.lua (update)
+local auth = require("src/middleware/auth")
 
--- Create a middleware function that requires authentication for protected routes
-local authMiddleware = requireAuth(protectedRoutes)
+-- Define a function to protect routes with authentication
+local function protectRoute(route)
+    return auth.requireAuth(route)
+end
 
--- Return the authentication middleware
-return authMiddleware
+-- Return the updated utils module
+return {
+    -- ... existing functions ...
+    protectRoute = protectRoute,
+}
+```
+```lua
+-- src/config.lua (update)
+local auth = require("src/middleware/auth")
+
+-- Define the authentication middleware
+local authMiddleware = auth.authenticate
+
+-- Return the updated config
+return {
+    -- ... existing config ...
+    authMiddleware = authMiddleware,
+}
+```
+```lua
+-- src/models.lua (update)
+local utils = require("src/utils")
+
+-- Define a function to verify a token
+local function verifyToken(token)
+    -- Implement token verification logic here
+    -- For example, using a database or a secret key
+    -- ...
+    return true -- or false if the token is invalid
+end
+
+-- Return the updated models module
+return {
+    -- ... existing models ...
+    verifyToken = verifyToken,
+}
