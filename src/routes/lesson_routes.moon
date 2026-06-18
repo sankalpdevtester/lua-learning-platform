@@ -1,17 +1,12 @@
 import LessonController from src.controllers.lesson_controller
-import express from require "express"
-import router from express.Router
+import express from luvit.express
 
-router.get "/lessons", LessonController.getLessons
-router.get "/lessons/:id", LessonController.getLesson
-router.post "/lessons", LessonController.createLesson
-router.put "/lessons/:id", LessonController.updateLesson
-router.delete "/lessons/:id", LessonController.deleteLesson
+lessonRoutes = express.Router()
 
-router.get "/project-ideas", LessonController.getProjectIdeas
-router.get "/project-ideas/:id", LessonController.getProjectIdea
-router.post "/project-ideas", LessonController.createProjectIdea
-router.put "/project-ideas/:id", LessonController.updateProjectIdea
-router.delete "/project-ideas/:id", LessonController.deleteProjectIdea
+lessonRoutes.get "/lessons", LessonController.getLessons
+lessonRoutes.get "/lessons/:id", LessonController.getLesson
+lessonRoutes.post "/lessons", LessonController.createLesson
+lessonRoutes.put "/lessons/:id", LessonController.updateLesson
+lessonRoutes.delete "/lessons/:id", LessonController.deleteLesson
 
-export default router
+export default lessonRoutes
