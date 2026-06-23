@@ -1,71 +1,69 @@
 -- src/utils/cache.moon
 
 -- Import required modules
-import utils from require "utils"
-import luvit from require "luvit"
-import LuaSQL from require "LuaSQL"
+import Cache from 'lru-cache'
+import config from 'src/config'
 
--- Define cache class
-class Cache
-  new: (@ttl = 60) =>
-    @cache = {}
-    @lock = luvit.lock()
+-- Define cache options
+cacheOptions = {
+  max: 500
+  maxAge: 1000 * 60 * 60 -- 1 hour
+}
 
-  -- Get value from cache
-  get: (key) =>
-    @lock\lock!
-    value = @cache[key]
-    @lock\unlock!
-    return value
+-- Create a new cache instance
+cache = Cache cacheOptions
 
-  -- Set value in cache
-  set: (key, value) =>
-    @lock\lock!
-    @cache[key] = { value, expires = os.time! + @ttl }
-    @lock\unlock!
+-- Function to get a value from the cache
+get = (key) ->
+  cache\get key
 
-  -- Delete value from cache
-  delete: (key) =>
-    @lock\lock!
-    @cache[key] = nil
-    @lock\unlock!
+-- Function to set a value in the cache
+set = (key, value) ->
+  cache\set key, value
 
-  -- Clean up expired values
-  cleanup: =>
-    @lock\lock!
-    now = os.time!
-    for key, value in pairs @cache
-      if value.expires < now
-        @cache[key] = nil
-    @lock\unlock!
+-- Function to delete a value from the cache
+del = (key) ->
+  cache\del key
 
--- Create cache instance
-cache = Cache 300 -- 5 minutes TTL
-
--- Define function to cache API responses
-cache_api_response = (key, fn) =>
-  value = cache\get key
-  if value
-    return value.value
-  else
-    value = fn!
-    cache\set key, value
-    return value
-
--- Define function to invalidate cache
-invalidate_cache = (key) =>
-  cache\delete key
-
--- Define function to clean up cache
-clean_up_cache = =>
-  cache\cleanup!
+-- Function to clear the cache
+clear = ->
+  cache\reset!
 
 -- Example usage:
--- cache_api_response "lessons", ->
---   -- API call to fetch lessons
---   lessons = LuaSQL.query "SELECT * FROM lessons"
---   return lessons
+-- cache\set 'api-response', { data: 'example data' }
+-- print cache\get 'api-response'
 
--- invalidate_cache "lessons"
+-- Export the cache functions
+export {
+  :get
+  :set
+  :del
+  :clear
+}
 
--- clean_up_cache!
+-- Example usage in a route handler
+import cache from 'src/utils/cache'
+import LessonController from 'src/controllers/lesson_controller'
+
+lessonController = LessonController!
+
+-- Define a route handler that uses the cache
+getLessons = (req, res) ->
+  cachedResponse = cache\get 'lessons'
+  if cachedResponse
+    res\json cachedResponse
+  else
+    lessons = lessonController\getLessons!
+    cache\set 'lessons', lessons
+    res\json lessons
+
+-- Define a route handler that clears the cache
+clearCache = (req, res) ->
+  cache\clear!
+  res\json { message: 'Cache cleared' }
+
+-- Export the route handlers
+export {
+  :getLessons
+  :clearCache
+}
