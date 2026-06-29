@@ -1,17 +1,12 @@
 -- src/utils/cache.moon
 
--- Import required modules
-import Cache from 'lru-cache'
-import config from 'src/config'
+import Cache from require "lru-cache"
 
--- Define cache options
-cacheOptions = {
+-- Create a new cache instance with a TTL of 1 hour
+cache = Cache {
   max: 500
-  maxAge: 1000 * 60 * 60 -- 1 hour
+  ttl: 1000 * 60 * 60
 }
-
--- Create a new cache instance
-cache = Cache cacheOptions
 
 -- Function to get a value from the cache
 get = (key) ->
@@ -22,48 +17,48 @@ set = (key, value) ->
   cache\set key, value
 
 -- Function to delete a value from the cache
-del = (key) ->
-  cache\del key
+delete = (key) ->
+  cache\delete key
 
--- Function to clear the cache
+-- Function to clear the entire cache
 clear = ->
   cache\reset!
 
 -- Example usage:
--- cache\set 'api-response', { data: 'example data' }
--- print cache\get 'api-response'
+-- cache\set "lesson:1", { id: 1, name: "Introduction to Lua" }
+-- print cache\get "lesson:1"
 
 -- Export the cache functions
 export {
   :get
   :set
-  :del
+  :delete
   :clear
 }
 
--- Example usage in a route handler
-import cache from 'src/utils/cache'
-import LessonController from 'src/controllers/lesson_controller'
+-- Example usage in a controller:
+-- src/controllers/lesson_controller.moon
+import cache from require "utils.cache"
 
-lessonController = LessonController!
-
--- Define a route handler that uses the cache
-getLessons = (req, res) ->
-  cachedResponse = cache\get 'lessons'
-  if cachedResponse
-    res\json cachedResponse
+get_lesson = (id) ->
+  cached_lesson = cache\get "lesson:#{id}"
+  if cached_lesson
+    return cached_lesson
   else
-    lessons = lessonController\getLessons!
-    cache\set 'lessons', lessons
-    res\json lessons
+    lesson = Lesson\find id
+    cache\set "lesson:#{id}", lesson
+    return lesson
 
--- Define a route handler that clears the cache
-clearCache = (req, res) ->
-  cache\clear!
-  res\json { message: 'Cache cleared' }
+-- Example usage in a route:
+-- src/routes/lesson_routes.moon
+import cache from require "utils.cache"
 
--- Export the route handlers
-export {
-  :getLessons
-  :clearCache
-}
+get "/lessons/:id", (req, res) ->
+  id = req.params.id
+  lesson = cache\get "lesson:#{id}"
+  if lesson
+    res\send lesson
+  else
+    lesson = Lesson\find id
+    cache\set "lesson:#{id}", lesson
+    res\send lesson
