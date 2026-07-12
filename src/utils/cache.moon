@@ -1,64 +1,74 @@
 -- src/utils/cache.moon
 
-import Cache from require "lru-cache"
+-- Import required modules
+import Cache from 'lru-cache'
 
--- Create a new cache instance with a TTL of 1 hour
+-- Define cache constants
+CACHE_TTL = 60 -- 1 minute
+CACHE_MAX_SIZE = 1000
+
+-- Create a new cache instance
 cache = Cache {
-  max: 500
-  ttl: 1000 * 60 * 60
+  max: CACHE_MAX_SIZE
+  ttl: CACHE_TTL * 1000 -- convert to milliseconds
 }
 
--- Function to get a value from the cache
-get = (key) ->
+-- Define a function to get a value from the cache
+get_cached_value = (key) ->
   cache\get key
 
--- Function to set a value in the cache
-set = (key, value) ->
+-- Define a function to set a value in the cache
+set_cached_value = (key, value) ->
   cache\set key, value
 
--- Function to delete a value from the cache
-delete = (key) ->
+-- Define a function to delete a value from the cache
+delete_cached_value = (key) ->
   cache\delete key
 
--- Function to clear the entire cache
-clear = ->
+-- Define a function to clear the entire cache
+clear_cache = ->
   cache\reset!
 
--- Example usage:
--- cache\set "lesson:1", { id: 1, name: "Introduction to Lua" }
--- print cache\get "lesson:1"
+-- Define a middleware function to cache API responses
+cache_api_response = (req, res, next) ->
+  -- Get the cache key from the request
+  cache_key = req.url
+
+  -- Check if the response is already cached
+  cached_response = get_cached_value cache_key
+  if cached_response
+    -- Return the cached response
+    res\send cached_response
+  else
+    -- Call the next middleware function
+    res.on 'finish', ->
+      -- Cache the response
+      set_cached_value cache_key, res.body
+    next!
 
 -- Export the cache functions
 export {
-  :get
-  :set
-  :delete
-  :clear
+  :get_cached_value
+  :set_cached_value
+  :delete_cached_value
+  :clear_cache
+  :cache_api_response
 }
-
--- Example usage in a controller:
+```
+-- Example usage in src/controllers/lesson_controller.moon
+```moonscript
 -- src/controllers/lesson_controller.moon
-import cache from require "utils.cache"
 
-get_lesson = (id) ->
-  cached_lesson = cache\get "lesson:#{id}"
-  if cached_lesson
-    return cached_lesson
-  else
-    lesson = Lesson\find id
-    cache\set "lesson:#{id}", lesson
-    return lesson
+import cache_api_response from require 'utils.cache'
 
--- Example usage in a route:
--- src/routes/lesson_routes.moon
-import cache from require "utils.cache"
+-- Define a route handler for the lessons API endpoint
+get_lessons = (req, res) ->
+  -- Use the cache middleware function
+  cache_api_response req, res, ->
+    -- Fetch the lessons from the database
+    lessons = Lesson\find_all!
+    -- Return the lessons as JSON
+    res\json lessons
 
-get "/lessons/:id", (req, res) ->
-  id = req.params.id
-  lesson = cache\get "lesson:#{id}"
-  if lesson
-    res\send lesson
-  else
-    lesson = Lesson\find id
-    cache\set "lesson:#{id}", lesson
-    res\send lesson
+-- Define the route for the lessons API endpoint
+routes\get '/api/lessons', get_lessons
