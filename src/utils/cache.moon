@@ -1,74 +1,64 @@
 -- src/utils/cache.moon
+-- In-memory cache with TTL for API responses
 
--- Import required modules
-import Cache from 'lru-cache'
+import Timer from require "luvit.timer"
+import utils from require "utils"
 
--- Define cache constants
-CACHE_TTL = 60 -- 1 minute
-CACHE_MAX_SIZE = 1000
+Cache = {}
+Cache.__index = Cache
 
 -- Create a new cache instance
-cache = Cache {
-  max: CACHE_MAX_SIZE
-  ttl: CACHE_TTL * 1000 -- convert to milliseconds
-}
+function Cache.new(ttl = 60) -- 1 minute default TTL
+  local instance = setmetatable({}, Cache)
+  instance.cache = {}
+  instance.ttl = ttl
+  return instance
+end
 
--- Define a function to get a value from the cache
-get_cached_value = (key) ->
-  cache\get key
-
--- Define a function to set a value in the cache
-set_cached_value = (key, value) ->
-  cache\set key, value
-
--- Define a function to delete a value from the cache
-delete_cached_value = (key) ->
-  cache\delete key
-
--- Define a function to clear the entire cache
-clear_cache = ->
-  cache\reset!
-
--- Define a middleware function to cache API responses
-cache_api_response = (req, res, next) ->
-  -- Get the cache key from the request
-  cache_key = req.url
-
-  -- Check if the response is already cached
-  cached_response = get_cached_value cache_key
-  if cached_response
-    -- Return the cached response
-    res\send cached_response
+-- Get a value from the cache
+function Cache:get(key)
+  local value = self.cache[key]
+  if value and value.expire > os.time() then
+    return value.data
   else
-    -- Call the next middleware function
-    res.on 'finish', ->
-      -- Cache the response
-      set_cached_value cache_key, res.body
-    next!
+    self.cache[key] = nil
+    return nil
+  end
+end
 
--- Export the cache functions
-export {
-  :get_cached_value
-  :set_cached_value
-  :delete_cached_value
-  :clear_cache
-  :cache_api_response
-}
-```
--- Example usage in src/controllers/lesson_controller.moon
-```moonscript
--- src/controllers/lesson_controller.moon
+-- Set a value in the cache
+function Cache:set(key, data)
+  self.cache[key] = {
+    data: data
+    expire: os.time() + self.ttl
+  }
+end
 
-import cache_api_response from require 'utils.cache'
+-- Delete a value from the cache
+function Cache:delete(key)
+  self.cache[key] = nil
+end
 
--- Define a route handler for the lessons API endpoint
-get_lessons = (req, res) ->
-  -- Use the cache middleware function
-  cache_api_response req, res, ->
-    -- Fetch the lessons from the database
-    lessons = Lesson\find_all!
-    -- Return the lessons as JSON
-    res\json lessons
+-- Clear the entire cache
+function Cache:clear()
+  self.cache = {}
+end
 
--- Define the route for the lessons API endpoint
-routes\get '/api/lessons', get_lessons
+-- Create a cache instance with a 5 minute TTL
+cache = Cache.new(300)
+
+-- Example usage:
+-- cache:set("api_response", { status: 200, data: "Hello World" })
+-- print(cache:get("api_response")) -- prints: { status: 200, data: "Hello World" }
+
+-- Automatically clear expired cache entries
+Timer.setInterval(60, function() -- every 1 minute
+  for key, value in pairs(cache.cache) do
+    if value.expire < os.time() then
+      cache:delete(key)
+    end
+  end
+end)
+
+-- Export the cache instance
+export cache
