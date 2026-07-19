@@ -1,64 +1,79 @@
 -- src/utils/cache.moon
--- In-memory cache with TTL for API responses
 
-import Timer from require "luvit.timer"
+-- Import required modules
 import utils from require "utils"
+import luvit from require "luvit"
+import LuaSQL from require "luasql.mysql"
 
-Cache = {}
-Cache.__index = Cache
+-- Define cache class
+class Cache
+  new: (@ttl = 60) =>
+    @cache = {}
+
+  -- Get value from cache
+  get: (key) =>
+    if @cache[key]
+      if @cache[key].expires > os.time!
+        return @cache[key].value
+      else
+        @cache[key] = nil
+    nil
+
+  -- Set value in cache
+  set: (key, value) =>
+    @cache[key] = {
+      value: value
+      expires: os.time! + @ttl
+    }
+
+  -- Delete value from cache
+  delete: (key) =>
+    @cache[key] = nil
 
 -- Create a new cache instance
-function Cache.new(ttl = 60) -- 1 minute default TTL
-  local instance = setmetatable({}, Cache)
-  instance.cache = {}
-  instance.ttl = ttl
-  return instance
-end
+cache = Cache 300 -- 5 minutes TTL
 
--- Get a value from the cache
-function Cache:get(key)
-  local value = self.cache[key]
-  if value and value.expire > os.time() then
-    return value.data
+-- Define a function to cache API responses
+cache_api_response = (key, func) =>
+  cached_value = cache\get key
+  if cached_value
+    return cached_value
   else
-    self.cache[key] = nil
-    return nil
-  end
-end
-
--- Set a value in the cache
-function Cache:set(key, data)
-  self.cache[key] = {
-    data: data
-    expire: os.time() + self.ttl
-  }
-end
-
--- Delete a value from the cache
-function Cache:delete(key)
-  self.cache[key] = nil
-end
-
--- Clear the entire cache
-function Cache:clear()
-  self.cache = {}
-end
-
--- Create a cache instance with a 5 minute TTL
-cache = Cache.new(300)
+    value = func!
+    cache\set key, value
+    return value
 
 -- Example usage:
--- cache:set("api_response", { status: 200, data: "Hello World" })
--- print(cache:get("api_response")) -- prints: { status: 200, data: "Hello World" }
+-- Cache a database query
+cache_db_query = (query) =>
+  cache_api_response "db_query", ->
+    db = LuaSQL.mysql()
+    cur = db\execute query
+    rows = {}
+    row = cur\fetch {}
+    while row
+      table.insert rows, row
+      row = cur\fetch {}
+    cur\close!
+    db\close!
+    rows
 
--- Automatically clear expired cache entries
-Timer.setInterval(60, function() -- every 1 minute
-  for key, value in pairs(cache.cache) do
-    if value.expire < os.time() then
-      cache:delete(key)
-    end
-  end
-end)
+-- Cache a HTTP request
+cache_http_request = (url) =>
+  cache_api_response "http_request", ->
+    http = luvit.http
+    response = http.request url
+    body = response\body!
+    response\close!
+    body
 
--- Export the cache instance
-export cache
+-- Test the cache
+test_cache = ->
+  print "Testing cache..."
+  cached_value = cache_db_query "SELECT * FROM lessons"
+  print "Cached value:", cached_value
+  cached_value = cache_http_request "https://example.com"
+  print "Cached value:", cached_value
+
+-- Run the test
+test_cache!
